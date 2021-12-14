@@ -324,11 +324,11 @@ let rec string_of_term = function
   | TmFst t ->     
     (match t with 
       | TmPair(t1, t2) ->  string_of_term t1
-      | _ -> raise (Type_error "[String of Term Error] Snd argument must be of type Tuple"))
+      | _ -> "Fst("^string_of_term t)^")"
   | TmSnd t -> 
     (match t with 
       | TmPair(t1, t2) ->  string_of_term t2
-      | _ -> raise (Type_error "[String of Term Error] Snd argument must be of type Tuple"))
+      | _ -> "Snd("^string_of_term t)^")"
   | TmRecord t ->
     let content_string = 
       (let rec aux t acc = match t with
@@ -487,9 +487,7 @@ let rec isval tm = match tm with
 
 exception NoRuleApplies
 ;;
-let rec print_list = function 
-[] -> ()
-| e::l -> print_endline e ; print_string " " ; print_list l
+
 (*auxiliar function to resolve variable naming in the context*)
 let eval_ctx ctx t = 
   let rec solve_context l tm = match tm with
@@ -531,7 +529,6 @@ let eval_ctx ctx t =
     (*Solve context for the term that is getting binded in t2 and solve context
     in t2 but with the variable name of t1 already being added*)
     | TmLetIn(var_name, t1, t2)->
-      print_list l;
         TmLetIn(var_name, solve_context l t1, (solve_context(var_name::l) t2))
     (*S-Fix*)
     | TmFix t ->
@@ -550,13 +547,13 @@ let eval_ctx ctx t =
       let context_solved_term = solve_context l t in
       (match context_solved_term with 
           |TmPair(t1,t2) -> solve_context l t1
-          |_ ->raise(Type_error "[Solving Context Error] Fst argument must be of type Tuple"))
+          |_ -> TmFst t)
     (*S-Snd*)
     | TmSnd t ->
       let context_solved_term = solve_context l t in
       (match context_solved_term with 
           |TmPair(t1,t2) -> solve_context l t2
-          |_ ->raise(Type_error "[Solving Context Error] Snd argument must be of type Tuple"))
+          |_ ->TmSnd t)
     (*S-Record*)
     | TmRecord t ->
       let rec aux accum t =
@@ -568,7 +565,7 @@ let eval_ctx ctx t =
       let context_solved_term = solve_context l t in
       (match context_solved_term with 
         | TmRecord t -> solve_context l (List.assoc field_name t)
-        | _ -> raise (Type_error "[Solving Context Error] Projection argument must be of type Record"))
+        | _ -> TmProjection (t, field_name))
 
     
   in solve_context [] t
@@ -699,6 +696,6 @@ let rec eval ctx tm =
     let evaluated_tm = eval1 ctx tm in
     eval ctx evaluated_tm
   with
-    NoRuleApplies -> eval_ctx ctx tm
+    NoRuleApplies -> print_endline(string_of_term tm); eval_ctx ctx tm
 ;;
 
