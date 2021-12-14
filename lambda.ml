@@ -522,9 +522,21 @@ let eval_ctx ctx t =
     (*S-Abs*)
     | TmAbs(s, t, t1)->
         TmAbs (s,t,(solve_context(s::l) t1))
-    (*S-App*)
-    | TmApp(t1,t2)->
-        TmApp (solve_context l t1, solve_context l t2)
+        
+    (* E-AppAbs *)
+    | TmApp (TmAbs(x, _, t12), v2) when isval v2 ->
+      subst x v2 t12
+
+    (* E-App2: evaluate argument before applying function *)
+    | TmApp (v1, t2) when isval v1 ->
+      let t2' = solve_context l t2 in
+      (solve_context l (TmApp (v1, t2')))
+
+    (* E-App1: evaluate function before argument *)
+    | TmApp (t1, t2) ->
+      let t1' = solve_context l t1 in
+      (solve_context l (TmApp (t1', t2)))
+    
     (*S-LetIn*)
     (*Solve context for the term that is getting binded in t2 and solve context
     in t2 but with the variable name of t1 already being added*)
@@ -696,6 +708,5 @@ let rec eval ctx tm =
     let evaluated_tm = eval1 ctx tm in
     eval ctx evaluated_tm
   with
-    NoRuleApplies -> print_endline(string_of_term tm); eval_ctx ctx tm
+    NoRuleApplies -> eval_ctx ctx tm
 ;;
-
