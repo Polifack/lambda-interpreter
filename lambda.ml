@@ -9,6 +9,8 @@ type ty =
   | TyString
   | TyPair of ty * ty
   | TyRecord of (string*ty) list
+  | TyList of ty
+  | TyEmptyList
 ;;
 
 (* Type definition of terms in lambda interpreter *)
@@ -38,16 +40,14 @@ type term =
 
   | TmRecord of (string*term) list
   | TmProjection of term*string
+
+  | TmList of term list
+  | TmEmptyList 
+  | TmHead of term
+  | TmTail of term
+  | TmIsEmpty of term
 ;;
 
-(* Type definition of operations allowed in lambda interpreter 
-        --> Term Evaluation
-        --> Variable Binding
-*)
-type operations =
-    Eval of term
-    | Bind of string * term
-  
 
 (* CONTEXT MANAGEMENT *)
 
@@ -84,84 +84,24 @@ let rec string_of_ty ty = match ty with
         | _ -> String.sub acc 0 ((String.length acc)-2) 
       in aux t "")
     in "Record{"^content_string^"}"
+  | TyList t ->      
+      (string_of_ty t)^" list "
+  | TyEmptyList ->
+        "Empty List"
 ;;
 
 
 exception Type_error of string
 ;;
 
-let rec string_of_term = function
-    TmTrue ->
-      "true"
-  | TmFalse ->
-      "false"
-  | TmIf (t1,t2,t3) ->
-      "if " ^ "(" ^ string_of_term t1 ^ ")" ^
-      " then " ^ "(" ^ string_of_term t2 ^ ")" ^
-      " else " ^ "(" ^ string_of_term t3 ^ ")"
-  | TmZero ->
-      "0"
-  | TmSucc t ->
-     let rec f n t' = match t' with
-          TmZero -> string_of_int n
-        | TmSucc s -> f (n+1) s
-        | _ -> "succ " ^ "(" ^ string_of_term t ^ ")"
-      in f 1 t
-  | TmPred t ->
-      "pred " ^ "(" ^ string_of_term t ^ ")"
-  | TmIsZero t ->
-      "iszero " ^ "(" ^ string_of_term t ^ ")"
-  | TmVar s ->
-      s
-  | TmAbs (s, tyS, t) ->
-      "(lambda " ^ s ^ ":" ^ string_of_ty tyS ^ ". " ^ string_of_term t ^ ")"
-  | TmApp (t1, t2) ->
-      "(" ^ string_of_term t1 ^ " " ^ string_of_term t2 ^ ")"
-  | TmLetIn (s, t1, t2) ->
-      "let " ^ s ^ " = " ^ string_of_term t1 ^ " in " ^ string_of_term t2
-  | TmFix t ->
-      "(fix " ^ string_of_term t ^ ")"
-  | TmString s ->
-      s
-  | TmConcat (t1,t2) ->
-      string_of_term t1 ^ string_of_term t2
-  | TmPair (t1, t2) ->
-      "Pair("^string_of_term t1^","^string_of_term t2^")"
-  | TmFst t -> 
-    (match t with 
-      | TmPair(t1, t2) ->  string_of_term t1
-      | _ -> raise (Type_error "[String of Term Error] Fst argument must be of type Tuple"))
-  | TmSnd t -> 
-    (match t with 
-      | TmPair(t1, t2) ->  string_of_term t2
-      | _ -> raise (Type_error "[String of Term Error] Snd argument must be of type Tuple"))
-  | TmRecord t ->
-    let content_string = 
-      (let rec aux t acc = match t with
-        | (field_name, field_term)::tl -> aux tl (acc^field_name^":"^string_of_term field_term^", ")
-        | _ -> String.sub acc 0 ((String.length acc)-2) 
-      in aux t "")
-    in "Record{"^content_string^"}"
-  | TmProjection (t, field_name) -> 
-    (match t with 
-      | TmRecord t ->  string_of_term (List.assoc field_name t)
-      | _ -> raise (Type_error "[String of Term Error] Projection argument must be of type Record"))
+
+let addbinding ctx x term bind =
+  (x, (term, bind)) :: ctx
 ;;
 
-let addbinding ctx var_name var_term var_type =
-  (*print_endline("adding bind of variable "^var_name^":"^string_of_ty var_type);*)
-  (var_name, (var_term, var_type)) :: ctx
+let getbinding ctx x =
+  List.assoc x ctx
 ;;
-
-let getbinding ctx var_name =
-  (*List assoc searches for <var_name> in the list of pairs <context>
-    Returns a tuple (var_term, var_type
-    print_endline("retrieving bind of variable "^var_name^":"^(string_of_ty (snd(List.assoc var_name ctx))^" >> "^(string_of_term (fst(List.assoc var_name ctx)))));
-  *)
-
-  List.assoc var_name ctx
-;;
-
 
 let rec typeof ctx tm = match tm with
     (* T-True *)
@@ -280,6 +220,33 @@ let rec typeof ctx tm = match tm with
     (match type_of_term with 
       | TyRecord t -> (List.assoc field_name t)
       | _ -> raise (Type_error "[Type of Error] Projection argument must be of type Record"))
+  
+        
+  | TmEmptyList -> TyEmptyList
+  (* T-List *)
+  | TmList t ->
+      (match t with
+        | hd::tl -> TyList (typeof ctx hd)
+        | [] -> TyEmptyList)
+
+  | TmHead t ->
+    let type_of_term = typeof ctx t in
+    (match type_of_term with 
+      | TyList t -> t
+      | _ -> raise (Type_error "[Type of Error] Projection argument must be of type Record"))
+  
+  | TmTail t ->
+    let type_of_term = typeof ctx t in
+    (match type_of_term with 
+      | TyList t -> t
+      | _ -> raise (Type_error "[Type of Error] Projection argument must be of type Record"))
+  
+  | TmIsEmpty t -> 
+    let type_of_term = typeof ctx t in
+    (match type_of_term with 
+      | TyList t -> TyBool
+      | TyEmptyList -> TyBool
+      | _ -> raise (Type_error "[Type of Error] Projection argument must be of type Record"))
 ;;
      
 (* TERMS MANAGEMENT *)
@@ -290,6 +257,7 @@ let rec string_of_term = function
   | TmFalse ->
       "false"
   | TmIf (t1,t2,t3) ->
+      "Conditional stament: "^
       "if " ^ "(" ^ string_of_term t1 ^ ")" ^
       " then " ^ "(" ^ string_of_term t2 ^ ")" ^
       " else " ^ "(" ^ string_of_term t3 ^ ")"
@@ -306,7 +274,7 @@ let rec string_of_term = function
   | TmIsZero t ->
       "iszero " ^ "(" ^ string_of_term t ^ ")"
   | TmVar s ->
-      s
+      "Variable: "^s
   | TmAbs (s, tyS, t) ->
       "(lambda " ^ s ^ ":" ^ string_of_ty tyS ^ ". " ^ string_of_term t ^ ")"
   | TmApp (t1, t2) ->
@@ -321,14 +289,14 @@ let rec string_of_term = function
       string_of_term t1 ^ string_of_term t2
   | TmPair (t1, t2) ->
       "Pair("^string_of_term t1^","^string_of_term t2^")"
-  | TmFst t ->     
+  | TmFst t -> 
     (match t with 
       | TmPair(t1, t2) ->  string_of_term t1
-      | _ -> "Fst("^string_of_term t)^")"
+      | _ -> "fst " ^ "(" ^ string_of_term t ^ ")")
   | TmSnd t -> 
     (match t with 
       | TmPair(t1, t2) ->  string_of_term t2
-      | _ -> "Snd("^string_of_term t)^")"
+      | _ -> "snd " ^ "(" ^ string_of_term t ^ ")")
   | TmRecord t ->
     let content_string = 
       (let rec aux t acc = match t with
@@ -339,7 +307,29 @@ let rec string_of_term = function
   | TmProjection (t, field_name) -> 
     (match t with 
       | TmRecord t ->  string_of_term (List.assoc field_name t)
-      | _ -> raise (Type_error "[String of Term Error] Projection argument must be of type Record"))
+      | _ -> "{" ^ string_of_term t ^ "}."^field_name)
+  
+    | TmEmptyList -> "Empty List"
+
+  | TmList t ->
+    let content_string = 
+        (let rec aux t acc = match t with
+          |hd::tl->aux tl (acc^(string_of_term hd)^",")
+          |_->String.sub acc 0 ((String.length acc)-1)
+        in aux t "")
+    in "List["^content_string^"]"
+
+  | TmHead t ->
+    (match t with 
+      |TmList list_content -> string_of_term(List.hd list_content)
+      |_ -> "hd ("^string_of_term t^")")
+      
+  | TmTail t ->
+    (match t with 
+      |TmList list_content -> string_of_term(List.hd(List.tl list_content))
+      |_ -> "hd ("^string_of_term t^")")
+  
+  | TmIsEmpty t -> "isempty " ^ "(" ^ string_of_term t ^ ")"
 ;;
 
 let rec ldif l1 l2 = match l1 with
@@ -400,6 +390,23 @@ let rec free_vars tm = match tm with
     (match t with 
       | TmRecord t ->  free_vars (List.assoc field_name t)
       | _ -> raise (Type_error "[Free Vars Error] Projection argument must be of type Record"))
+  | TmEmptyList -> []
+  | TmList t->
+      let rec aux accum t = match t with 
+        | hd::tl -> aux ((free_vars hd)@accum) tl
+        | _ -> (List.rev accum)
+      in aux [] t
+  | TmHead t ->
+    (match t with
+      | TmList list_content -> free_vars (List.hd list_content)
+      | _ -> raise (Type_error "[Free Vars Error] Head argument must be of type List"))
+    
+  | TmTail t ->
+    (match t with
+      | TmList list_content -> free_vars (List.hd (List.rev list_content))
+      | _ -> raise (Type_error "[Free Vars Error] Tail argument must be of type List"))
+    
+  | TmIsEmpty t -> []
 ;;
 
 let rec fresh_name x l =
@@ -467,6 +474,23 @@ let rec subst x s tm = match tm with
       | TmVar vn -> TmProjection ((subst x s t), field_name)
       | TmRecord t -> subst x s (List.assoc field_name t)
       | _ -> raise (Type_error "[Substitution Error] Projection argument must be of type Record"))
+  | TmEmptyList -> TmEmptyList
+  | TmList t ->
+    let rec aux accum t = match t with
+      | hd::tl -> aux (((subst x s hd))::accum) tl
+      | _ -> TmList (List.rev accum)
+    in aux [] t
+  | TmHead t ->
+    (match t with
+      | TmList list_content -> subst x s (List.hd list_content)
+      | _ -> raise (Type_error "[Substitution Error] Head argument must be of type List"))
+  
+  | TmTail t ->
+    (match t with
+      | TmList list_content -> subst x s (List.hd (List.rev list_content))
+      | _ -> raise (Type_error "[Substitution Error] Tail argument must be of type list"))
+
+  | TmIsEmpty t -> TmIsEmpty (subst x s t)
 ;;
 
 let rec isnumericval tm = match tm with
@@ -482,6 +506,8 @@ let rec isval tm = match tm with
   | t when isnumericval t -> true
   | TmPair(_,_)->true
   | TmRecord(_)->true
+  | TmList(_)->true
+  | TmEmptyList->true
   | _ -> false
 ;;
 
@@ -490,16 +516,23 @@ exception NoRuleApplies
 
 (*auxiliar function to resolve variable naming in the context*)
 let eval_ctx ctx t = 
-  let rec solve_context l tm = match tm with
+  let rec solve_context l tm =match tm with
     (*S-True*)
     | TmTrue -> 
         TmTrue
     (*S-False*)
     | TmFalse -> 
         TmFalse
-    (*S-If*)
-    | TmIf(cond, thn, els) -> 
-        TmIf (solve_context l cond, solve_context l thn, solve_context l els)
+    (* S-IfTrue *)
+    |TmIf (TmTrue, t2, _) ->
+      t2
+    (* S-IfFalse *)
+    | TmIf (TmFalse, _, t3) ->
+      t3
+    (* S-If *)
+    | TmIf (t1, t2, t3) ->
+      let t1' = solve_context l t1 in
+      TmIf (t1', t2, t3)
     (*S-Zero*)
     | TmZero ->
         TmZero
@@ -507,44 +540,40 @@ let eval_ctx ctx t =
     | TmSucc t ->
         TmSucc (solve_context l t)
     (*S-Pred*)
-    | TmPred t ->
-        TmPred (solve_context l t)
+    | TmPred TmZero ->
+      TmZero
+
+    (* S-PredSucc *)
+    | TmPred (TmSucc nv1) when isnumericval nv1 ->
+      nv1
+
+    (* S-Pred *)
+    | TmPred t1 ->
+        solve_context l (TmPred (( solve_context l t1)))
+
     (*S-IsZero*)
     | TmIsZero t ->
         TmIsZero (solve_context l t)
     (*S-Var*)
     (*Check if variable already in var_list l, otherwise retrieve*)
-    | TmVar var_name ->
-        if List.mem var_name l then 
-          TmVar var_name
+    | TmVar s ->
+        if List.mem s l 
+          then TmVar s 
         else 
-          (fst(getbinding ctx var_name))
+          solve_context l (fst (getbinding ctx s))
     (*S-Abs*)
-    | TmAbs(s, t, t1)->
-        TmAbs (s,t,(solve_context(s::l) t1))
-        
-    (* E-AppAbs *)
-    | TmApp (TmAbs(x, _, t12), v2) when isval v2 ->
-      subst x v2 t12
-
-    (* E-App2: evaluate argument before applying function *)
-    | TmApp (v1, t2) when isval v1 ->
-      let t2' = solve_context l t2 in
-      (solve_context l (TmApp (v1, t2')))
-
-    (* E-App1: evaluate function before argument *)
+    | TmAbs (s, t, t1) ->
+      TmAbs (s, t, (solve_context (s::l) t1))
+    (*S-App*)
     | TmApp (t1, t2) ->
-      let t1' = solve_context l t1 in
-      (solve_context l (TmApp (t1', t2)))
-    
-    (*S-LetIn*)
-    (*Solve context for the term that is getting binded in t2 and solve context
-    in t2 but with the variable name of t1 already being added*)
-    | TmLetIn(var_name, t1, t2)->
-        TmLetIn(var_name, solve_context l t1, (solve_context(var_name::l) t2))
+      TmApp (solve_context l t1,solve_context l t2)
+    (*S-Letin*)
+    | TmLetIn (s, t1, t2) ->
+      TmLetIn (s, solve_context l t1, (solve_context (s::l) t2))
     (*S-Fix*)
     | TmFix t ->
-        TmFix (solve_context l t)
+      TmFix (solve_context l t)
+    
     (*S-Str*)
     | TmString s ->
         TmString s
@@ -578,16 +607,44 @@ let eval_ctx ctx t =
       (match context_solved_term with 
         | TmRecord t -> solve_context l (List.assoc field_name t)
         | _ -> TmProjection (t, field_name))
-
+    | TmEmptyList -> TmEmptyList
+    | TmList t ->
+      let rec aux accum t =
+        match t with
+          | hd::tl -> aux ((solve_context l hd)::accum) tl
+          | _ -> TmList (List.rev accum)
+      in aux [] t
+  
+    | TmHead t ->
+      let context_solved_term = solve_context l t in
+      (match context_solved_term with
+        | TmList list_content -> solve_context l (List.hd list_content)
+        | _ -> TmHead t)
+    
+    | TmTail t ->
+      (let context_solved_term = (solve_context l t) in
+      match context_solved_term with
+        | TmList list_content -> (match list_content with 
+              | [h] -> List.hd [h]
+              | h::t -> solve_context l (TmTail (TmList t))
+              | _ -> TmEmptyList)
+        | _ -> raise (Type_error "[Evaluation Error] Tail argument must be of type List"))
+    
+    | TmIsEmpty TmEmptyList -> TmTrue
+    | TmIsEmpty TmList _ -> TmFalse
+    | TmIsEmpty t1 ->
+      let t1' = solve_context l t1 in
+        TmIsEmpty t1'
     
   in solve_context [] t
 ;;
 
 (*now we need to eval according to context, so whenever a rule does not apply we can search in the context
 in order to retrieve var name*)
-let rec eval1 ctx tm = match tm with
+let rec eval1 ctx tm = 
+  match tm with
     (* E-IfTrue *)
-    TmIf (TmTrue, t2, _) ->
+    |TmIf (TmTrue, t2, _) ->
       t2
 
     (* E-IfFalse *)
@@ -696,6 +753,35 @@ let rec eval1 ctx tm = match tm with
     (match evaluation_of_term with 
       | TmRecord t -> eval1 ctx (List.assoc field_name t)
       | _ -> raise (Type_error "[Evaluation Error] Projection argument must be of type Record"))
+  
+  | TmList t ->
+    print_endline("list "^string_of_term (TmList t));
+    let rec aux accum t =
+      match t with
+        hd::tl -> aux ((eval1 ctx hd)::accum) tl
+        | _ -> TmList (List.rev accum)
+    in aux [] t
+
+  | TmHead t ->
+      let context_solved_term = eval1 ctx t in
+      (match context_solved_term with
+        | TmList list_content -> eval1 ctx (List.hd list_content)
+        | _ -> raise (Type_error "[Evaluation Error] Head argument must be of type List"))
+    
+  | TmTail t ->
+      (let context_solved_term = (eval1 ctx t) in
+      match context_solved_term with
+        | TmList list_content -> (match list_content with 
+            | [h] -> List.hd [h]
+            | h::t -> eval1 ctx (TmTail (TmList t))
+            | _ -> TmEmptyList)
+        | _ -> raise (Type_error "[Evaluation Error] Tail argument must be of type List"))
+  
+  | TmIsEmpty TmEmptyList -> TmTrue
+  | TmIsEmpty TmList _ -> TmFalse
+  | TmIsEmpty t1 ->
+    let t1' = eval1 ctx t1 in
+    TmIsEmpty t1'
 
   | _ ->
       raise NoRuleApplies
@@ -710,3 +796,29 @@ let rec eval ctx tm =
   with
     NoRuleApplies -> eval_ctx ctx tm
 ;;
+
+(* Type definition of operations allowed in lambda interpreter 
+        --> Term Evaluation
+        --> Variable Binding
+*)
+type operations =
+    Eval of term
+    | Bind of string * term
+
+
+(* Function to discern between the different operations avaliable in lambda 
+      Eval -> Evaluates a term. Returns same context but printing the term
+      Bind -> Binds a variable_name to a term. Returns the context with the variable_name binded to the term tm
+*)
+let do_operation ctx op_code = match op_code with 
+  Eval tm ->
+    let tyTm = typeof ctx tm in
+    let tm' = eval ctx tm in
+    print_endline (" - : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
+    ctx
+
+| Bind (s, tm) ->
+    let tyTm = typeof ctx tm in
+    let tm' = eval ctx tm in
+    print_endline (" - : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
+    addbinding ctx s tm tyTm

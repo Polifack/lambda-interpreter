@@ -24,9 +24,14 @@
 %token RPAREN
 %token LBRACE
 %token RBRACE
+%token LBRACKET
+%token RBRACKET
 %token COMMA
 %token FST
 %token SND
+%token TL
+%token HD
+%token ISEMPT
 %token DOT
 %token EQ
 %token COLON
@@ -58,6 +63,8 @@ term :
       { TmAbs ($2, $4, $6) }
   | LET STRINGV EQ term IN term
       { TmLetIn ($2, $4, $6) }
+  | LET STRINGV COLON ty EQ term IN term
+      { TmLetIn ($2, TmAbs ($2, $4, $6), $8) }
   | LETREC STRINGV COLON ty EQ term IN term
       { TmLetIn ($2, TmFix ( TmAbs ($2, $4, $6)), $8) }
   | CONCAT term term
@@ -97,6 +104,10 @@ atomicTerm :
       }
   | LBRACE recordTerm RBRACE
       { TmRecord $2 }
+  | LBRACKET listTerm RBRACKET
+      { TmList $2 }
+  | LBRACKET RBRACKET
+      { TmEmptyList }
   | atomicTerm DOT STRINGV
       { TmProjection ($1, $3) }
   | pairTerm
@@ -105,6 +116,12 @@ atomicTerm :
       { TmFst $1 }
   | atomicTerm SND
       { TmSnd $1 }
+  | HD atomicTerm
+      { TmHead $2 }
+  | TL atomicTerm
+      { TmTail $2 }
+  | ISEMPT atomicTerm
+      {  TmIsEmpty $2 }
 
 pairTerm :
   | LPAREN term COMMA term RPAREN
@@ -115,6 +132,12 @@ recordTerm :
       { [($1,$3)] }
     | STRINGV COLON term COMMA recordTerm
       { ($1,$3)::$5 }
+
+listTerm :
+    term
+      { [$1] }
+    | term COMMA listTerm
+      { $1::$3 }
 
 ty :
     atomicTy
@@ -135,6 +158,8 @@ atomicTy :
       { $1 }
   | LBRACE recordTy RBRACE
       { TyRecord $2 }
+  | LBRACKET listTy RBRACKET
+      { TyList $2 }
 
   
 pairTy:
@@ -147,5 +172,8 @@ recordTy:
    | STRINGV COLON ty COMMA recordTy
       { ($1,$3)::$5 }
 
+listTy :
+    ty
+      { $1 }
 
 

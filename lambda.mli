@@ -6,6 +6,8 @@ type ty =
   | TyString
   | TyPair of ty * ty
   | TyRecord of (string*ty) list
+  | TyList of ty
+  | TyEmptyList
 ;;
 
 type term =
@@ -32,6 +34,12 @@ type term =
 
   | TmRecord of (string*term) list
   | TmProjection of term*string
+
+  | TmList of term list
+  | TmEmptyList 
+  | TmHead of term
+  | TmTail of term
+  | TmIsEmpty of term
 ;;
 
 type operations =
@@ -52,4 +60,5 @@ val typeof : context -> term -> ty;;
 val string_of_term : term -> string;;
 exception NoRuleApplies;;
 val eval : context -> term -> term;;
+val do_operation: context -> operations -> context;;
 

@@ -33,7 +33,7 @@ let read_input_f inC nLine =
   let rec aux acc_Text acc_lineN =
     let line = input_line inC in
     if (is_final_line line) then 
-      let substring = (List.hd (String.split_on_char ';' line)) in
+      let substring = (List.hd (Str.split (Str.regexp ";;") line)) in
         ((concat acc_Text substring), acc_lineN+1)
     else 
         aux (concat acc_Text line) (acc_lineN+1)
@@ -41,22 +41,6 @@ let read_input_f inC nLine =
 ;;
 
 
-(* Function to discern between the different operations avaliable in lambda 
-      Eval -> Evaluates a term. Returns same context but printing the term
-      Bind -> Binds a variable_name to a term. Returns the context with the variable_name binded to the term tm
-*)
-let do_operation ctx op_code = match op_code with 
-    Eval tm ->
-        let tyTm = typeof ctx tm in
-        let tm' = eval ctx tm in
-        print_endline (" - : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
-        ctx
-
-    | Bind (s, tm) ->
-        let tyTm = typeof ctx tm in
-        let tm' = eval ctx tm in
-        print_endline (" - : " ^ string_of_ty tyTm ^ " = " ^ string_of_term tm');
-        addbinding ctx s tm tyTm
 
 (*Function to read lambda expresions from a file.
   -- The expresions will be read sequentially, from the first line to the last

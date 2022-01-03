@@ -1,25 +1,54 @@
-true
-let x = true in x
-if false then true else false
-0
-succ (succ (succ 0))
-3
-succ (pred 0)
-iszero (pred (succ (succ 0)))
-if iszero 3 then 0 else 1
-iszero true
-if 1 then true else false
-if iszero 3 then 0 else false
-let id = Lx.x in id 3
-let id_bool = L x:Bool. x in id_bool true
-let id_nat = L x:Nat. x in id_nat 5
-let x = 5 in let id_nat = L x:Nat. x in id_nat x
-let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in sum 21 34
-let fix = lambda f.(lambda x. f (lambda y. x x y)) (lambda x. f (lambda y. x x y)) in let sumaux = lambda f. (lambda n. (lambda m. if (iszero n) then m else succ (f (pred n) m))) in let sum = fix sumaux in let prodaux = lambda f. (lambda n. (lambda m. if (iszero (pred n)) then m else sum (f (pred n) m) m)) in let prod = fix prodaux in prod 12 5
-//
-id_nat = L x:Nat. x;;
-nat = 4
-id_nat nat
-sum_uno = L x:Nat. succ x;;
+true;;
+let x = true in x;;
+letrec sum : Nat -> Nat -> Nat =
+lambda n : Nat. lambda m : Nat. if iszero n then m else succ (sum (pred n) m) in sum 21 34;;
+1;;
+succ 1;;
+iszero 1;;
+iszero 0;;
+succ (pred 1);;
+true;;
+false;;
+if true then 1 else 0;;
+if false then 1 else 0;;
+"hello";;
+"world";;
+"hello"@"world";; 
+(1,2);;
+("hello","world");;
+("hello",("brave",("new","world")));;
+("hello","world").1;;
+("hello","world").2;;
+("hello",("brave",("new","world"))).2;;
+(L x:Nat.succ x, 1);;
+{number:1};;
+{number:1,string:"hello world!"};;
+{number:1,string:"hello world!"}.number;;
+{number:1,string:"hello world!"}.string;;
+{lambda_function:L x:Nat. succ x,number:1};;
+[1,2,3];;
+["a","b","c"];;
+[{id:"1"},{id:"2"},{id:"3"}];;
+hd [1,2,3];;
+tl [1,2,3];;
+[];;
+isempty [];;
+isempty [1,2,3];;
+L x:Nat. succ x;;
+L x:Str. x@"hola";;
+L x:(Nat,Nat). x;;    
+L x:{id:Nat}.x;;
+let next=(lambda x:Nat. succ (x)) in next 2;;
+let first=(lambda x:(Nat,Nat). x.1) in first (1,2);;
+if (true) then 1 else 0;;
+if (false) then "hello" else "world";;
+if (iszero 0) then 2 else 3;;
+if (isempty []) then 2 else 3;;
 letrec sum : Nat -> Nat -> Nat = lambda n : Nat. lambda m : Nat. if iszero n then m else succ (sum (pred n) m) in sum 21 34;;
+a=2;;
+b=3;;
+r={a:"str"};;
+r.a;;
+succ a;;
+pred b;;
 sum = L x:Nat. L y:Nat. letrec sum : Nat -> Nat -> Nat = lambda n : Nat. lambda m : Nat. if iszero n then m else succ (sum (pred n) m) in sum x y;;
